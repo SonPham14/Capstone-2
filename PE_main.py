@@ -1,11 +1,14 @@
-import pefile
+# agent_app.py
+from flask import Flask, request, jsonify
+import joblib
+import pickle
 import os
+import pefile
 import array
 import math
-import pickle
-import joblib
-import sys
-import argparse
+import requests
+
+app = Flask(__name__)
 
 
 #For calculating the entropy
