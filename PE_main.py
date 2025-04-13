@@ -1,11 +1,3 @@
-'''
-This is the main function of the PE classification of this program
-The library used to extract the features from the PE was pefile and you can find it here,
-https://pypi.org/project/pefile/
-
-In this program we are first extracting the features from the PE and then providing it to the saved machine and using thoses features we are prediciting whether the PE is malicious or not.
-'''
-
 import pefile
 import os
 import array
@@ -183,19 +175,30 @@ def extract_infos(fpath):
     return res
 
 
-if __name__ == '__main__':
-    
-    #Loading the classifier.pkl and features.pkl
-    clf = joblib.load('Classifier/classifier.pkl')
-    features = pickle.loads(open(os.path.join('Classifier/features.pkl'),'rb').read())
-    
-    #extracting features from the PE file mentioned in the argument 
-    data = extract_infos(sys.argv[1])
-    
-    #matching it with the features saved in features.pkl
-    pe_features = list(map(lambda x:data[x], features))
-    print("Features used for classification: ", pe_features)
-    
-    #prediciting if the PE is malicious or not based on the extracted features
-    res= clf.predict([pe_features])[0]
-    print ('The file %s is %s' % (os.path.basename(sys.argv[1]),['malicious', 'legitimate'][res]))
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    data = request.get_json()
+    file_path = data.get("file_path")
+
+    if not file_path or not os.path.isfile(file_path):
+        return jsonify({"error": "File path invalid"}), 400
+
+    extracted = extract_infos(file_path)
+    if not extracted:
+        return jsonify({"error": "Failed to extract features"}), 500
+
+    # Lấy danh sách features đúng thứ tự
+    features_path = "C:\\features.pkl"
+    features = pickle.loads(open(features_path, "rb").read())
+    feature_vector = [extracted.get(k, 0) for k in features]
+
+    # Gửi tới ML server
+    ml_url = "http://192.168.88.1:8000/predict-features"
+    try:
+        resp = requests.post(ml_url, json={"features": feature_vector}, timeout=5)
+        return jsonify(resp.json())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5001)
