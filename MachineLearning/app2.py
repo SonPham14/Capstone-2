@@ -84,6 +84,7 @@ def detect_webattack(log: Dict[str, Any]):
         # Lấy các thông tin cần thiết từ log
         data = {
             "timestamp": log.get("timestamp", ""),
+            "agent": log.get("agent", {}).get("name", ""),
             "data_id": log.get("data", {}).get("id", 0),
             "rule_level": log.get("rule", {}).get("level", 0),
             "MITRE_ID": log.get("rule", {}).get("mitre", {}).get("id", ""),
@@ -94,9 +95,8 @@ def detect_webattack(log: Dict[str, Any]):
             "data_protocol": log.get("data", {}).get("protocol", ""),
             "data_url": log.get("data", {}).get("url", "")
         }
-
-        # threat = analyze_threat(data)  # Phân tích đe dọa
-
+        
+        print(data["full_log"].replace("/", "////"))
         # Dự đoán nhãn
         label, probability = web_attack_predict(data)
         
@@ -104,32 +104,29 @@ def detect_webattack(log: Dict[str, Any]):
         attack = {1: "XSS", 2: "SQLi"}.get(label, "Benign")
         print("Attack: ", attack)
         print("Probability: ", probability)
-        from datetime import datetime
-        date = datetime.utcnow().isoformat() + "Z"
-        shuffle_web_attack(attack, probability, date)
+        
+        if attack != "Benign":
+            shuffle_web_attack(attack, probability, data)
 
-        # Lưu log + kết quả
-        # record = log.dict()
-        # record.update(res)
-        # df = pd.DataFrame([record])
-        # df.to_csv("Log/webattack_logs.csv",
-        #           mode="a", index=False,
-        #           header=not os.path.exists("webattack_logs.csv"))
     except Exception as e:
         print("=== Exception in /detect-webattack ===")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal ML error: {e}")
 
 
-def shuffle_web_attack(label: str, probability: float, date: str):
+def shuffle_web_attack(label: str, probability: float, data: Dict[str, Any]):
     url = "http://192.168.88.135:3001/api/v1/hooks/webhook_4c76f98f-7f5a-465b-93fc-079c41a54327"  # 🔁 URL webhook Shuffle
     headers = {"Content-Type": "application/json"}
     notification_content = {
         "label": label,
         "probability": probability,
-        "is_threat": "true",
+        "ip": data.get("srcip", ""),
+        "agent": data.get("agent", ""),
+        "mitre_id": data.get("MITRE_ID", "")[0],
+        "mitre_tatic": data.get("MITRE_Tactic", "")[0],
+        "full_log": data.get("full_log", "").replace("/", "//"),
         "recommended_action": "IP Blocked",
-        "date": date
+        "date": data.get("timestamp", "")
     }
 
     try:
@@ -143,11 +140,12 @@ def shuffle_web_attack(label: str, probability: float, date: str):
 # === Malware detection ===
 
 # Feature list
-class FeatureInput(BaseModel):
+class Input(BaseModel):
     features: list[float]
+    path: str
 
 @app.post("/predict-features")
-def predict_features(inp: FeatureInput):
+def predict_features(inp: Input):
     """
     Nhận trực tiếp features list dạng json, trả về prediction.
     """
@@ -161,25 +159,25 @@ def predict_features(inp: FeatureInput):
         df = pd.DataFrame(inp.features, columns=["feature"])
         df["label"] = label
         df["probability"] = probability
-        # df["timestamp"] = pd.Timestamp.now()
-        # df.to_csv("malware_logs.csv",
-        #           mode="a", index=False,
-        #           header=not os.path.exists("/Log/malware_logs.csv"))
-        shuffle_malware_attack(label, probability)
+        df["timestamp"] = pd.Timestamp.now()
+        df.to_csv("malware_logs.csv",
+                  mode="a", index=False,
+                  header=not os.path.exists("/Log/malware_logs.csv"))
+        shuffle_malware_attack(inp.path, label, probability)
         print({"label": label, "probability": float(probability)})
         return {"label": label, "probability": float(probability)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=e)
 
 
-def shuffle_malware_attack(label: str, probability: float):
+def shuffle_malware_attack(path: str, label: str, probability: float):
     url = "http://192.168.88.135:3001/api/v1/hooks/webhook_397ad5f5-c18c-47da-ab6d-990688ff357d"  # 🔁 URL webhook Shuffle
     headers = {"Content-Type": "application/json"}
     payload = {
+        "path": path.replace("\\", "\\\\"),
         "label": label,
         "probability": float(probability)
     }
-
     try:
         response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status()
