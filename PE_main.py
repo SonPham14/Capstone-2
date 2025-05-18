@@ -1,4 +1,3 @@
-# agent_app.py
 from flask import Flask, request, jsonify
 import joblib
 import pickle
@@ -182,7 +181,7 @@ def extract_infos(fpath):
 def analyze():
     data = request.get_json()
     file_path = data.get("file_path")
-
+    print("file_path: ", type(file_path))
     if not file_path or not os.path.isfile(file_path):
         return jsonify({"error": "File path invalid"}), 400
 
@@ -191,17 +190,21 @@ def analyze():
         return jsonify({"error": "Failed to extract features"}), 500
 
     # Lấy danh sách features đúng thứ tự
-    features_path = "C:\\features.pkl"
+    features_path = "features.pkl"
     features = pickle.loads(open(features_path, "rb").read())
     feature_vector = [extracted.get(k, 0) for k in features]
 
     # Gửi tới ML server
     ml_url = "http://192.168.88.1:8000/predict-features"
+    data = {
+        "features": feature_vector,
+        "path": data.get("file_path")
+    }
     try:
-        resp = requests.post(ml_url, json={"features": feature_vector}, timeout=5)
+        resp = requests.post(ml_url, json=data, timeout=5)
         return jsonify(resp.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001)
+    app.run(host="192.168.52.128", port=5001)
