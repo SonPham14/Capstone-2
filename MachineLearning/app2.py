@@ -43,38 +43,6 @@ def web_attack_predict(data):
 
 # === Web attack detection ===
 
-# ⚡ Hàm kiểm tra IP nội bộ
-def is_internal(ip):
-    return 1 if ip.startswith("192.168.") or ip.startswith("10.") else 0
-
-# ⚡ Hàm lấy danh tiếng IP
-def get_ip_reputation(ip):
-    bad_ips = {"203.0.113.5": 100, "192.168.1.10": 30}
-    return bad_ips.get(ip, 10)
-
-# ⚡ Hàm phân tích đe dọa
-def analyze_threat(log_entry):
-    log_entry["is_internal_ip"] = is_internal(log_entry.get("data", {}).get("src_ip", "0.0.0.0"))
-    log_entry["src_ip_reputation"] = get_ip_reputation(log_entry.get("data", {}).get("src_ip", "0.0.0.0"))
-    
-    filtered_log = {key: log_entry[key] for key in FEATURE_COLUMNS if key in log_entry}
-    df = pd.DataFrame([filtered_log])
-
-    prediction = model.predict(df)  # Dự đoán nhãn
-    is_threat, recommended_action = prediction[0]
-
-    
-    # Kết hợp với threat_score
-    if log_entry["threat_score"] > 80:
-        recommended_action = 1  # Chặn IP
-    elif 50 <= log_entry["threat_score"] <= 80:
-        recommended_action = 2  # Cách ly Endpoint
-    else:
-        recommended_action = 0  # Không có hành động nào
-    
-    actions = {0: "Khong co hanh dong", 1: "IP Blocked", 2: "Endpoint isolation"}
-    return {"is_threat": bool(is_threat), "recommended_action": actions.get(recommended_action, "Khong co hanh dong")}
-
 @app.post("/detect-webattack")
 def detect_webattack(log: Dict[str, Any]):
     """
@@ -96,7 +64,7 @@ def detect_webattack(log: Dict[str, Any]):
             "data_url": log.get("data", {}).get("url", "")
         }
         
-        print(data["full_log"].replace("/", "////"))
+        
         # Dự đoán nhãn
         label, probability = web_attack_predict(data)
         
@@ -120,7 +88,8 @@ def shuffle_web_attack(label: str, probability: float, data: Dict[str, Any]):
     notification_content = {
         "label": label,
         "probability": probability,
-        "ip": data.get("srcip", ""),
+        "srcip": data.get("srcip", ""),
+        "dstip": data.get("dstip", ""),
         "agent": data.get("agent", ""),
         "mitre_id": data.get("MITRE_ID", "")[0],
         "mitre_tatic": data.get("MITRE_Tactic", "")[0],
@@ -163,9 +132,14 @@ def predict_features(inp: Input):
         df.to_csv("malware_logs.csv",
                   mode="a", index=False,
                   header=not os.path.exists("/Log/malware_logs.csv"))
-        shuffle_malware_attack(inp.path, label, probability)
-        print({"label": label, "probability": float(probability)})
-        return {"label": label, "probability": float(probability)}
+        
+        
+        if label == "malicious":
+            print({"path": inp.path, "label": label, "probability": float(probability)})
+            shuffle_malware_attack(inp.path, label, probability)
+        else:
+            print("Legitimate file detected.")
+            print({"path": inp.path, "label": label, "probability": float(probability)})
     except Exception as e:
         raise HTTPException(status_code=500, detail=e)
 
