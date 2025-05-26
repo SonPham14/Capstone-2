@@ -1,60 +1,53 @@
-#!/usr/bin/env python
-"""
-delete_file.py – Wazuh active-response (Windows Agent)
+#!/usr/bin/env python3
+# delete_file.py – Active-response
 
-• Đọc JSON từ STDIN.
-• Tìm đường dẫn file cần xoá, ưu tiên:
-    1. data["alert"]["data"]["file"]     (khi script được kích hoạt tự động)
-    2. data["parameters"]["file"]        (khi gọi qua Wazuh API)
+import sys, json, pathlib, os, datetime
 
-• Ghi log vào ar.log để dễ audit.
-"""
+LOG = pathlib.Path(os.getenv('ProgramFiles(x86)', r'C:\Program Files')) \
+      / 'ossec-agent' / 'active-response' / 'ar.log'
 
-import sys, json, os, pathlib, datetime
+def log(msg):
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    LOG.open("a").write(f"{datetime.datetime.now():%Y/%m/%d %H:%M:%S} {msg}\n")
 
-AR_DIR = pathlib.Path(os.getenv("ProgramFiles(x86)", r"C:\Program Files")) \
-         / "ossec-agent" / "active-response"
-LOG_FILE = AR_DIR / "ar.log"
-
-def write_log(message: str) -> None:
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with LOG_FILE.open("a", encoding="utf-8") as f:
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        f.write(f"{now}  {message}\n")
-
-def get_target(path_dict: dict) -> str | None:
-    # ① tự động qua rule
+def get_target(data):
+    # 1) API → extra_args
     try:
-        return path_dict["alert"]["data"]["file"]
+        ea = data["parameters"]["extra_args"]
+        if isinstance(ea, list) and ea:
+            return ea[0]
     except Exception:
         pass
-    # ② gọi trực tiếp qua API
-    return path_dict.get("parameters", {}).get("file")
+    # 2) API legacy → parameters.file
+    return data.get("parameters", {}).get("file")
 
-def main() -> int:
+def main():
+    raw = sys.stdin.read()
     try:
-        raw_json = sys.stdin.read()
-        data     = json.loads(raw_json or "{}")
-        target   = get_target(data)
-        if not target:
-            write_log("No 'file' field found in payload")
-            return 1
+        payload = json.loads(raw or "{}")
+    except Exception as e:
+        log(f"Invalid JSON: {e}")
+        sys.exit(1)
 
-        p = pathlib.Path(target)
-        if p.exists():
-            try:
-                os.chmod(p, 0o600)  # gỡ Read-only nếu có
-            except Exception:
-                pass
+    if payload.get("command") != "add":
+        log("Received non-add action, skipping")
+        sys.exit(0)
+
+    target = get_target(payload)
+    if not target:
+        log("No target file found in payload")
+        sys.exit(1)
+
+    p = pathlib.Path(target)
+    if p.exists():
+        try:
+            os.chmod(p, 0o600)
             p.unlink()
-            write_log(f"Deleted {p}")
-            return 0
-        else:
-            write_log(f"File not found: {p}")
-            return 1
-    except Exception as err:
-        write_log(f"Error: {err}")
-        return 1
+            log(f"Deleted {p}")
+        except Exception as e:
+            log(f"Error deleting {p}: {e}")
+    else:
+        log(f"File not found: {p}")
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
