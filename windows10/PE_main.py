@@ -174,50 +174,39 @@ def extract_infos(fpath):
         res['VersionInformationSize'] = len(version_infos.keys())
     except AttributeError:
         res['VersionInformationSize'] = 0
+
+    pe.close()
     return res
 
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    # 1) Đọc JSON
-    try:
-        data = request.get_json(force=True)
-    except Exception:
-        return jsonify({"error": "Invalid JSON payload"}), 400
-
+    data = request.get_json()
     file_path = data.get("file_path")
-    if not file_path:
-        return jsonify({"error": "Missing 'file_path' in JSON"}), 400
-    if not os.path.isfile(file_path):
-        return jsonify({"error": f"File not found: {file_path}"}), 400
+    print("file_path: ", type(file_path))
+    if not file_path or not os.path.isfile(file_path):
+        return jsonify({"error": "File path invalid"}), 400
 
-    # 2) Extract features (đảm bảo đóng file bên trong extract_infos)
-    try:
-        extracted = extract_infos(file_path)
-    except Exception as e:
-        return jsonify({"error": f"Error extracting features: {e}"}), 500
-
+    extracted = extract_infos(file_path)
     if not extracted:
-        return jsonify({"error": "Failed to extract any features"}), 500
+        return jsonify({"error": "Failed to extract features"}), 500
 
-    # 3) Load list các feature cần thiết
+    # Lấy danh sách features đúng thứ tự
     features_path = "features.pkl"
-    try:
-        with open(features_path, "rb") as f:
-            features = pickle.load(f)
-    except Exception as e:
-        return jsonify({"error": f"Cannot load features list: {e}"}), 500
-
+    features = pickle.loads(open(features_path, "rb").read())
     feature_vector = [extracted.get(k, 0) for k in features]
 
-    # 4) Gửi lên ML server
+    # Gửi tới ML server
     ml_url = "http://192.168.88.1:8000/predict-features"
-    payload = {"features": feature_vector, "path": file_path}
+    data = {
+        "features": feature_vector,
+        "path": data.get("file_path")
+    }
     try:
-        resp = requests.post(ml_url, json=payload, timeout=5)
-        resp.raise_for_status()
-        result = resp.json()
+        resp = requests.post(ml_url, json=data, timeout=5)
+        return jsonify(resp.json())
     except Exception as e:
-        return jsonify({"error": f"ML server error: {e}"}), 500
+        return jsonify({"error": str(e)}), 500
 
-
+if __name__ == "__main__":
+    app.run(host="192.168.52.128", port=5001)
