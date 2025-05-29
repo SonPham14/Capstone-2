@@ -1,53 +1,49 @@
 #!/usr/bin/env python3
-# delete_file.py – Active-response
+import sys, json, os, datetime
+from pathlib import Path
 
-import sys, json, pathlib, os, datetime
-
-LOG = pathlib.Path(os.getenv('ProgramFiles(x86)', r'C:\Program Files')) \
-      / 'ossec-agent' / 'active-response' / 'ar.log'
+# Ghi vào active-responses.log mặc định
+LOG_FILE = Path(os.getenv('ProgramFiles(x86)', r'C:\Program Files (x86)')) \
+           / 'ossec-agent' / 'active-response' / 'active-responses.log'
 
 def log(msg):
-    LOG.parent.mkdir(parents=True, exist_ok=True)
-    LOG.open("a").write(f"{datetime.datetime.now():%Y/%m/%d %H:%M:%S} {msg}\n")
-
-def get_target(data):
-    # 1) API → extra_args
-    try:
-        ea = data["parameters"]["extra_args"]
-        if isinstance(ea, list) and ea:
-            return ea[0]
-    except Exception:
-        pass
-    # 2) API legacy → parameters.file
-    return data.get("parameters", {}).get("file")
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(LOG_FILE, "a") as f:
+        f.write(f"{datetime.datetime.now():%Y/%m/%d %H:%M:%S} {msg}\n")
 
 def main():
-    raw = sys.stdin.read()
+    # 1) Đọc đúng một dòng JSON
+    raw = sys.stdin.readline()
     try:
-        payload = json.loads(raw or "{}")
+        data = json.loads(raw)
     except Exception as e:
         log(f"Invalid JSON: {e}")
-        sys.exit(1)
+        return
 
-    if payload.get("command") != "add":
-        log("Received non-add action, skipping")
-        sys.exit(0)
+    log(f"Payload: {data}")
 
-    target = get_target(payload)
-    if not target:
-        log("No target file found in payload")
-        sys.exit(1)
+    # 2) Chỉ chạy khi action = add
+    action = data.get("command")
+    if action != "add":
+        log(f"Non-add action '{action}', skipping")
+        return
 
-    p = pathlib.Path(target)
-    if p.exists():
+    # 3) Lấy file từ extra_args
+    args = data.get("parameters", {}).get("extra_args", [])
+    if not args:
+        log("No target file in extra_args")
+        return
+    target = args[0]
+
+    # 4) Xóa file
+    if os.path.exists(target):
         try:
-            os.chmod(p, 0o600)
-            p.unlink()
-            log(f"Deleted {p}")
+            os.remove(target)
+            log(f"Deleted file: {target}")
         except Exception as e:
-            log(f"Error deleting {p}: {e}")
+            log(f"Error deleting '{target}': {e}")
     else:
-        log(f"File not found: {p}")
+        log(f"File not found: {target}")
 
 if __name__ == "__main__":
     main()
