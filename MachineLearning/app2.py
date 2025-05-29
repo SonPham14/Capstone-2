@@ -92,12 +92,12 @@ def shuffle_web_attack(label: str, probability: float, data: Dict[str, Any]):
         "dstip": data.get("dstip", ""),
         "agent": data.get("agent", ""),
         "mitre_id": data.get("MITRE_ID", "")[0],
-        "mitre_tatic": data.get("MITRE_Tactic", "")[0],
-        "full_log": data.get("full_log", "").replace("/", "//"),
+        "mitre_tactic": data.get("MITRE_Tactic", "")[0],
+        "payload": data.get("data_url", ""),
         "recommended_action": "IP Blocked",
         "date": data.get("timestamp", "")
     }
-
+    print("Payload: ", notification_content["payload"])
     try:
         response = requests.post(url, json=notification_content, headers=headers)
         response.raise_for_status()
@@ -112,6 +112,8 @@ def shuffle_web_attack(label: str, probability: float, data: Dict[str, Any]):
 class Input(BaseModel):
     features: list[float]
     path: str
+    agent_name: str
+    agent_ip: str
 
 @app.post("/predict-features")
 def predict_features(inp: Input):
@@ -136,7 +138,7 @@ def predict_features(inp: Input):
         
         if label == "malicious":
             print({"path": inp.path, "label": label, "probability": float(probability)})
-            shuffle_malware_attack(inp.path, label, probability)
+            shuffle_malware_attack(inp.agent_name, inp.agent_ip, inp.path, label, probability)
         else:
             print("Legitimate file detected.")
             print({"path": inp.path, "label": label, "probability": float(probability)})
@@ -144,10 +146,12 @@ def predict_features(inp: Input):
         raise HTTPException(status_code=500, detail=e)
 
 
-def shuffle_malware_attack(path: str, label: str, probability: float):
+def shuffle_malware_attack(agent_name: str, agent_ip: str, path: str, label: str, probability: float):
     url = "http://192.168.88.135:3001/api/v1/hooks/webhook_397ad5f5-c18c-47da-ab6d-990688ff357d"  # 🔁 URL webhook Shuffle
     headers = {"Content-Type": "application/json"}
     payload = {
+        "agent_name": agent_name,
+        "agent_ip": agent_ip,
         "path": path.replace("\\", "\\\\"),
         "label": label,
         "probability": float(probability)
