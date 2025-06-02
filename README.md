@@ -1,3 +1,3 @@
 # Capstone-2
 
-Capstone 2 - Applying Machine Learning to enhance automated incident response
+Capstone 2 - Applying Machine Learning to enhance automated Incident Response
