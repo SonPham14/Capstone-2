@@ -10,7 +10,7 @@ import requests
 app = Flask(__name__)
 
 
-#For calculating the entropy
+# For calculating the entropy
 def get_entropy(data):
     if len(data) == 0:
         return 0.0
@@ -26,7 +26,7 @@ def get_entropy(data):
 
     return entropy
 
-#For extracting the resources part
+# For extracting the resources part
 def get_resources(pe):
     """Extract resources :
     [entropy, size]"""
@@ -47,7 +47,7 @@ def get_resources(pe):
             return resources
     return resources
 
-#For getting the version information
+# For getting the version information
 def get_version_info(pe):
     """Return version infos"""
     res = {}
@@ -69,7 +69,7 @@ def get_version_info(pe):
           res['struct_version'] = pe.VS_FIXEDFILEINFO.StrucVersion
     return res
 
-#extract the info for a given file using pefile
+# Extract the info for a given file using pefile
 def extract_infos(fpath):
     res = {}
     pe = pefile.PE(fpath)
@@ -123,7 +123,7 @@ def extract_infos(fpath):
     res['SectionsMinVirtualsize'] = min(virtual_sizes)
     res['SectionMaxVirtualsize'] = max(virtual_sizes)
 
-    #Imports
+    # Imports
     try:
         res['ImportsNbDLL'] = len(pe.DIRECTORY_ENTRY_IMPORT)
         imports = sum([x.imports for x in pe.DIRECTORY_ENTRY_IMPORT], [])
@@ -134,13 +134,13 @@ def extract_infos(fpath):
         res['ImportsNb'] = 0
         res['ImportsNbOrdinal'] = 0
 
-    #Exports
+    # Exports
     try:
         res['ExportNb'] = len(pe.DIRECTORY_ENTRY_EXPORT.symbols)
     except AttributeError:
         # No export
         res['ExportNb'] = 0
-    #Resources
+    # Resources
     resources= get_resources(pe)
     res['ResourcesNb'] = len(resources)
     if len(resources)> 0:
@@ -191,7 +191,7 @@ def analyze():
     if not extracted:
         return jsonify({"error": "Failed to extract features"}), 500
 
-    # Lấy danh sách features đúng thứ tự
+    # Lấy features
     features_path = "features.pkl"
     features = pickle.loads(open(features_path, "rb").read())
     feature_vector = [extracted.get(k, 0) for k in features]
