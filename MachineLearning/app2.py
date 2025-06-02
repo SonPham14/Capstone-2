@@ -14,7 +14,6 @@ from typing import Any, Dict
 import traceback
 import requests
 
-# Wazuh password == WvaW?9iLq*Xq4VHQEPuegAgMeSIEf8b*
 
 # === FastAPI ===
 app = FastAPI(title="Malware & Web attack Detection API")
@@ -25,31 +24,24 @@ vec_path   = ".\\web_attack_detect_model\\tfidf_vectorizer.joblib"
 model_path = ".\\web_attack_detect_model\\wazuh_classifier.joblib"
 vectorizer = joblib.load(vec_path)
 model      = joblib.load(model_path)
-print("Web attack model loaded successfully.")
 
+
+# === Web attack detection ===
 
 def web_attack_predict(data):
-    # Chọn cột full_log làm feature
     X = data.get("full_log","data_url")
 
     # Ensure X is a list (even if it's a single string)
     X_vec = vectorizer.transform([X])  # Wrap X in a list
 
-    # Dự đoán nhãn
+    # Predict
     prediction = model.predict(X_vec)
     probability = model.predict_proba(X_vec).max()
     return int(prediction[0]), probability
 
-
-# === Web attack detection ===
-
 @app.post("/detect-webattack")
 def detect_webattack(log: Dict[str, Any]):
-    """
-    Nhận log từ Wazuh về SQLi/XSS, dùng text-based ML để dự đoán.
-    """
     try:
-        # Lấy các thông tin cần thiết từ log
         data = {
             "timestamp": log.get("timestamp", ""),
             "agent": log.get("agent", {}).get("name", ""),
@@ -65,7 +57,7 @@ def detect_webattack(log: Dict[str, Any]):
         }
         
         
-        # Dự đoán nhãn
+        # Predict
         label, probability = web_attack_predict(data)
         
         # Map label to attack type
@@ -81,7 +73,7 @@ def detect_webattack(log: Dict[str, Any]):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal ML error: {e}")
 
-
+# Send prediction to Shuffle
 def shuffle_web_attack(label: str, probability: float, data: Dict[str, Any]):
     url = "http://192.168.88.135:3001/api/v1/hooks/webhook_4c76f98f-7f5a-465b-93fc-079c41a54327"  # 🔁 URL webhook Shuffle
     headers = {"Content-Type": "application/json"}
@@ -117,16 +109,13 @@ class Input(BaseModel):
 
 @app.post("/predict-features")
 def predict_features(inp: Input):
-    """
-    Nhận trực tiếp features list dạng json, trả về prediction.
-    """
     try:
         model = joblib.load('Classifier/classifier.pkl')
         prediction = model.predict([inp.features])[0]
         probability = model.predict_proba([inp.features])[0].max()
         label = ['malicious', 'legitimate'][prediction]
 
-        # Ghi log + kết quả
+        # Log + Predict
         df = pd.DataFrame(inp.features, columns=["feature"])
         df["label"] = label
         df["probability"] = probability
@@ -134,7 +123,6 @@ def predict_features(inp: Input):
         df.to_csv("malware_logs.csv",
                   mode="a", index=False,
                   header=not os.path.exists("/Log/malware_logs.csv"))
-        
         
         if label == "malicious":
             print({"path": inp.path, "label": label, "probability": float(probability)})
@@ -145,7 +133,7 @@ def predict_features(inp: Input):
     except Exception as e:
         raise HTTPException(status_code=500, detail=e)
 
-
+# Send prediction to Shuffle
 def shuffle_malware_attack(agent_name: str, agent_ip: str, path: str, label: str, probability: float):
     url = "http://192.168.88.135:3001/api/v1/hooks/webhook_397ad5f5-c18c-47da-ab6d-990688ff357d"  # 🔁 URL webhook Shuffle
     headers = {"Content-Type": "application/json"}
