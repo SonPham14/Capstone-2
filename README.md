@@ -14,7 +14,15 @@ The Python scripts should be set up as follows:
 
 #### 2.1. On Windows 10
 
-Run the following command to compile the source code into an executable file: `pyinstaller -F /Extract_features_on_Windows10/delete-malware.py`
+In `ossec.conf` file, make sure that added 2 lines. Replace path_to_monitored_directory as directory that you want to monitor [1]:
+
+```
+<directories check_all="yes" report_changes="yes" realtime="yes">path_to_monitored_directory</directories>
+
+<directories realtime="yes">path_to_monitored_directory</directories>
+```
+
+Run the following command to compile the source code into an executable file [2]: `pyinstaller -F /Extract_features_on_Windows10/delete-malware.py`
 
 Then copy the generated file `/dist/delete-malware.exe` and paste it into the directory: `C:\Program Files (x86)\ossec-agent\active-response\bin\`
 
@@ -36,3 +44,8 @@ Run the script `/MachineLearning/app2.py` with the following command: `uvicorn a
 
 **Note: Make sure to update the IP addresses in the scripts to match your system configuration.**
 
+
+## References:
+
+- [1] Wazuh File Integrity Monitoring (FIM): https://documentation.wazuh.com/current/proof-of-concept-guide/poc-file-integrity-monitoring.html
+- [2] Remove malware using Wazuh active response: https://documentation.wazuh.com/current/proof-of-concept-guide/detect-remove-malware-virustotal.html
