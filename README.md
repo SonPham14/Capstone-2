@@ -44,6 +44,11 @@ Run the script `/MachineLearning/app2.py` with the following command: `uvicorn a
 
 **Note: Make sure to update the IP addresses in the scripts to match your system configuration.**
 
+### 3. Demo
+
+![Demo1](./Web-attack-detect-response.gif)
+
+![Demo2](./Malware-attack-detect-response.gif)
 
 ## References:
 
