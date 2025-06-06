@@ -32,7 +32,7 @@ On the Wazuh server, execute the script `/Wazuh_Server_trigger_alert/trigger_ale
 
 #### 2.3. On the Machine Learning system
 
-Run the script `/Machine_Learning/app2.py` with the following command: `uvicorn app2:app --reload --host <ML_IP> --port 8000`, where *<ML_IP>* is the IP address of the ML server.
+Run the script `/MachineLearning/app2.py` with the following command: `uvicorn app2:app --reload --host <ML_IP> --port 8000`, where *<ML_IP>* is the IP address of the ML server.
 
 **Note: Make sure to update the IP addresses in the scripts to match your system configuration.**
 
